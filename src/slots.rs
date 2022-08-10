@@ -1,4 +1,6 @@
-use enum_map::Enum;
+use std::ops::{Deref, DerefMut};
+
+use enum_map::{Enum, EnumMap};
 use strum::EnumIter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, Enum)]
@@ -38,6 +40,23 @@ impl Location {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+pub(crate) struct LocationTable<T>(EnumMap<Location, T>);
+
+impl<T> Deref for LocationTable<T> {
+    type Target = EnumMap<Location, T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T> DerefMut for LocationTable<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Slot<'a, Data> {
     data: Vec<&'a Data>,
@@ -68,12 +87,7 @@ where
             .iter()
             .zip(slot.data.iter().rev())
             // compare each element to its partner in the same location
-            .map(|(e1, e2)| e1 == e2)
-            // accumulate a single boolean
-            //
-            // if this becomes a performance concern with large sockets one can return as soon as
-            // they see false in the map step using more traditional for loops
-            .fold(true, |acc, x| acc && x)
+            .all(|(e1, e2)| e1 == e2)
     }
 }
 
