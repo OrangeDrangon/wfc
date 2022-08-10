@@ -113,3 +113,187 @@ impl<Data: Clone + Default> Pattern<Data> {
         out_data
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use enum_map::EnumMap;
+
+    #[test]
+    fn rotate() {
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ];
+
+        #[rustfmt::skip]
+        let expected: Vec<usize> = vec![
+            7, 4, 1,
+            8, 5, 2,
+            9, 6, 3
+        ];
+
+        let pattern = Pattern::new(data);
+
+        assert_eq!(expected, pattern.rotate().pixel_data);
+
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3, 4, 
+            5, 6, 7, 8, 
+            9, 10, 11, 12,
+            13, 14, 15, 16
+        ];
+
+        #[rustfmt::skip]
+        let expected: Vec<usize> = vec![
+            13, 9, 5, 1,
+            14, 10, 6, 2,
+            15, 11, 7, 3,
+            16, 12, 8, 4
+        ];
+
+        let pattern = Pattern::new(data);
+
+        assert_eq!(expected, pattern.rotate().pixel_data);
+    }
+
+    #[test]
+    fn reflect() {
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ];
+
+        #[rustfmt::skip]
+        let expected: Vec<usize> = vec![
+            3, 2, 1,
+            6, 5, 4,
+            9, 8, 7
+        ];
+
+        let pattern = Pattern::new(data);
+
+        assert_eq!(expected, pattern.reflect().pixel_data);
+
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3, 4, 
+            5, 6, 7, 8, 
+            9, 10, 11, 12,
+            13, 14, 15, 16
+        ];
+
+        #[rustfmt::skip]
+        let expected: Vec<usize> = vec![
+            4, 3, 2, 1,
+            8, 7, 6, 5,
+            12, 11, 10, 9,
+            16, 15, 14, 13
+        ];
+
+        let pattern = Pattern::new(data);
+
+        assert_eq!(expected, pattern.reflect().pixel_data);
+    }
+
+    #[test]
+    fn north_slot() {
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ];
+
+        #[rustfmt::skip]
+        let slots: EnumMap<Location, Vec<usize>> = EnumMap::from_array([
+            vec![1, 2, 3],
+            vec![3, 6, 9],
+            vec![7, 8, 9],
+            vec![1, 4, 7],
+        ]);
+
+        let pattern = Pattern::new(data);
+
+        let slot = pattern.slot(Location::North);
+
+        assert!(slot.data_eq(&slots[Location::North].iter().collect()))
+    }
+
+    #[test]
+    fn east_slot() {
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ];
+
+        #[rustfmt::skip]
+        let slots: EnumMap<Location, Vec<usize>> = EnumMap::from_array([
+            vec![1, 2, 3],
+            vec![3, 6, 9],
+            vec![7, 8, 9],
+            vec![1, 4, 7],
+        ]);
+
+        let pattern = Pattern::new(data);
+
+        let slot = pattern.slot(Location::East);
+
+        assert!(slot.data_eq(&slots[Location::East].iter().collect()))
+    }
+
+    #[test]
+    fn south_slot() {
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ];
+
+        #[rustfmt::skip]
+        let slots: EnumMap<Location, Vec<usize>> = EnumMap::from_array([
+            vec![1, 2, 3],
+            vec![3, 6, 9],
+            vec![7, 8, 9],
+            vec![1, 4, 7],
+        ]);
+
+        let pattern = Pattern::new(data);
+
+        let slot = pattern.slot(Location::South);
+
+        assert!(slot.data_eq(&slots[Location::South].iter().collect()))
+    }
+
+    #[test]
+    fn west_slot() {
+        #[rustfmt::skip]
+        let data: Vec<usize> = vec![
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9
+        ];
+
+        #[rustfmt::skip]
+        let slots: EnumMap<Location, Vec<usize>> = EnumMap::from_array([
+            vec![1, 2, 3],
+            vec![3, 6, 9],
+            vec![7, 8, 9],
+            vec![1, 4, 7],
+        ]);
+
+        let pattern = Pattern::new(data);
+
+        let slot = pattern.slot(Location::West);
+
+        assert!(slot.data_eq(&slots[Location::West].iter().collect()))
+    }
+}

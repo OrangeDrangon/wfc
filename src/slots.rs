@@ -89,6 +89,11 @@ where
             // compare each element to its partner in the same location
             .all(|(e1, e2)| e1 == e2)
     }
+
+    #[cfg(test)]
+    pub(crate) fn data_eq(&self, b: &Vec<&'a Data>) -> bool {
+        &self.data == b
+    }
 }
 
 #[cfg(test)]
