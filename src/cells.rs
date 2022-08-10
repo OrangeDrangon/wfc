@@ -19,6 +19,7 @@ pub(crate) struct WaysToBecomeTile {
 
 impl WaysToBecomeTile {
     fn is_zero(&self) -> bool {
+        debug_assert!(self.location_map.iter().all(|(_, c)| *c == 0usize));
         self.location_map[Location::North] == 0usize
     }
 
@@ -60,6 +61,8 @@ pub(crate) struct Cell<'a, Data> {
     ways_to_become_tile: TileTable<WaysToBecomeTile>,
     tiles: TileTable<Option<&'a Tile<Data>>>,
     num_remaining_tiles: usize,
+    sum_weights: f64,
+    sum_weight_log_weight: f64,
 }
 
 impl<'a, Data> Cell<'a, Data> {
@@ -67,10 +70,16 @@ impl<'a, Data> Cell<'a, Data> {
         ways_to_become_tile: TileTable<WaysToBecomeTile>,
         tiles: TileTable<Option<&'a Tile<Data>>>,
     ) -> Self {
+        let probs = tiles.iter().filter_map(|o| o.map(|t| t.probability));
+        let sum_weights: f64 = probs.clone().sum();
+        let sum_weight_log_weight: f64 = probs.map(|p| p * p.log(2.0)).sum();
+
         Self {
             num_remaining_tiles: tiles.len(),
             ways_to_become_tile,
             tiles,
+            sum_weights,
+            sum_weight_log_weight,
         }
     }
 
@@ -87,11 +96,7 @@ impl<'a, Data> Cell<'a, Data> {
     }
 
     pub fn entropy(&self) -> f64 {
-        -self
-            .tiles
-            .iter()
-            .filter_map(|option| option.map(|tile| tile.probability * tile.probability.log(2.0)))
-            .fold(0.0, |shannons, shannon| shannons + shannon)
+        self.sum_weights.log(2.0) - (self.sum_weight_log_weight / self.sum_weights)
     }
 
     pub(crate) fn collapse<Rng: rand::Rng>(&mut self, rng: &mut Rng) -> Vec<&'a Tile<Data>> {
@@ -117,10 +122,10 @@ impl<'a, Data> Cell<'a, Data> {
         self.num_remaining_tiles = 1;
 
         let removed: Vec<_> = removed.iter().cloned().filter_map(|o| o).collect();
-        removed
-            .iter()
-            .cloned()
-            .for_each(|e| self.ways_to_become_tile[e].clear());
+        removed.iter().cloned().for_each(|t| {
+            self.ways_to_become_tile[t].clear();
+            self.update_entropy_constants(t);
+        });
 
         removed
     }
@@ -142,7 +147,13 @@ impl<'a, Data> Cell<'a, Data> {
 
         std::mem::swap(&mut self.tiles[removed], &mut out);
         self.num_remaining_tiles -= 1;
+        self.update_entropy_constants(removed);
 
         out
+    }
+
+    fn update_entropy_constants(&mut self, tile: &Tile<Data>) {
+        self.sum_weights -= tile.probability;
+        self.sum_weight_log_weight -= tile.probability * tile.probability.log(2.0);
     }
 }
