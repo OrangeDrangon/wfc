@@ -21,6 +21,7 @@ pub struct Wave<'a, Data> {
     x_cells: usize,
     y_cells: usize,
     size: usize,
+    num_collapsed: usize,
 }
 
 impl<'a, Data: PartialEq> Wave<'a, Data> {
@@ -49,14 +50,33 @@ impl<'a, Data: PartialEq> Wave<'a, Data> {
             x_cells,
             y_cells,
             size,
+            num_collapsed: 0,
         }
     }
 
-    fn get_highest_entropy(&self) -> Vec<usize> {
-        let mut cells: Vec<_> = self.cells.iter().enumerate().collect();
-        cells.sort_by(|a, b| b.1.entropy().partial_cmp(&a.1.entropy()).unwrap());
+    fn get_lowest_entropy_cells(&self) -> Vec<usize> {
+        let mut cells: Vec<_> = self
+            .cells
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| {
+                if c.uncollapsed() {
+                    Some((i, c.entropy()))
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        cells.iter().map(|(i, _)| i).cloned().collect()
+        cells.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        assert!(cells.len() > 0);
+        let min = cells[0].1;
+
+        cells
+            .into_iter()
+            .filter_map(|(i, c)| if c == min { Some(i) } else { None })
+            .collect()
     }
 
     fn get_neighbors(&self, index: usize) -> EnumMap<Location, usize> {
@@ -78,12 +98,16 @@ impl<'a, Data: PartialEq> Wave<'a, Data> {
     }
 
     pub fn collapse(&mut self) -> Result<bool, WaveCollapseError> {
+        if self.collapsed() {
+            return Err(WaveCollapseError::AlreadyCollapsed);
+        }
+
         let mut rng = rand::thread_rng();
 
-        let highest_entropy = self.get_highest_entropy();
-        let entropy_index = rng.gen_range(0..highest_entropy.len());
+        let lowest_entropy = self.get_lowest_entropy_cells();
+        let entropy_index = rng.gen_range(0..lowest_entropy.len());
 
-        let index = highest_entropy[entropy_index];
+        let index = lowest_entropy[entropy_index];
         let cell = &mut self.cells[index];
 
         let mut removed_tiles: VecDeque<_> = cell
@@ -95,7 +119,11 @@ impl<'a, Data: PartialEq> Wave<'a, Data> {
             })
             .collect();
 
-        while let Some(removed) = removed_tiles.pop_front() {
+        self.num_collapsed += 1;
+
+        while !self.collapsed() && removed_tiles.len() > 0 {
+            let removed = removed_tiles.pop_front().unwrap();
+
             for (focus_location, focus_index) in self.get_neighbors(removed.cell_index) {
                 let focus = &mut self.cells[focus_index];
 
@@ -110,6 +138,8 @@ impl<'a, Data: PartialEq> Wave<'a, Data> {
 
                 if focus.invalid() {
                     return Err(WaveCollapseError::InvalidCell(focus_index));
+                } else if focus.collapsed() {
+                    self.num_collapsed += 1;
                 }
             }
         }
@@ -118,7 +148,7 @@ impl<'a, Data: PartialEq> Wave<'a, Data> {
     }
 
     pub fn collapsed(&self) -> bool {
-        self.cells.iter().all(|c| c.collapsed())
+        self.num_collapsed == self.cells.len()
     }
 
     pub fn to_image(&self) {
@@ -126,16 +156,13 @@ impl<'a, Data: PartialEq> Wave<'a, Data> {
             (self.size * self.x_cells) as u32,
             (self.size * self.y_cells) as u32,
         );
-
-        for cell in &self.cells {
-            for pixel in cell.pixel_data();
-        }
     }
 }
 
 #[derive(Debug, Display)]
 pub enum WaveCollapseError {
     InvalidCell(usize),
+    AlreadyCollapsed,
 }
 
 impl Error for WaveCollapseError {}
