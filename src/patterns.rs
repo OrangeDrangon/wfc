@@ -25,6 +25,7 @@ impl<Data> Pattern<Data> {
             Location::East => Slot::new(
                 self.pixel_data
                     .iter()
+                    .skip(self.size - 1)
                     .step_by(self.size)
                     .collect::<Vec<_>>(),
                 Location::East,
@@ -39,7 +40,6 @@ impl<Data> Pattern<Data> {
             Location::West => Slot::new(
                 self.pixel_data
                     .iter()
-                    .skip(self.size - 1)
                     .step_by(self.size)
                     .collect::<Vec<_>>(),
                 Location::West,
@@ -80,15 +80,20 @@ impl<Data: Clone + Default> Pattern<Data> {
         patterns
     }
 
+    /// clockwise 90 degree rotation
     pub fn rotate(&self) -> Self {
         Self {
             pixel_data: self.apply(|row, col, rotated| {
-                rotated[row * self.size + col] = self.pixel_data[col * self.size + row].clone()
+                let new_col = (self.size - 1) - row;
+                let new_row = col;
+                rotated[new_row * self.size + new_col] =
+                    self.pixel_data[row * self.size + col].clone();
             }),
             size: self.size,
         }
     }
 
+    /// y axis reflection
     pub fn reflect(&self) -> Self {
         Self {
             pixel_data: self.apply(|row, col, reflected| {
