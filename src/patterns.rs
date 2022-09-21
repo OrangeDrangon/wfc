@@ -4,47 +4,47 @@ use crate::slots::{Location, Slot};
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub struct Pattern<Data> {
-    pub pixel_data: Vec<Data>,
+    data: Box<[Data]>,
     size: usize,
 }
 
 impl<Data> Pattern<Data> {
-    pub fn new(pixel_data: Vec<Data>) -> Self {
-        let size = pixel_data.len().integer_sqrt();
-        assert_eq!(pixel_data.len(), size * size);
+    pub fn new(data: Box<[Data]>) -> Self {
+        let size = data.len().integer_sqrt();
+        assert_eq!(data.len(), size * size);
 
-        Self { size, pixel_data }
+        Self {
+            size,
+            data,
+        }
     }
 
     fn slot(&self, location: Location) -> Slot<Data> {
         match location {
-            Location::North => Slot::new(
-                self.pixel_data.iter().take(self.size).collect(),
-                Location::North,
-            ),
+            Location::North => {
+                Slot::new(self.data.iter().take(self.size).collect(), Location::North)
+            }
             Location::East => Slot::new(
-                self.pixel_data
+                self.data
                     .iter()
                     .skip(self.size - 1)
                     .step_by(self.size)
-                    .collect::<Vec<_>>(),
+                    .collect(),
                 Location::East,
             ),
             Location::South => Slot::new(
-                self.pixel_data
-                    .iter()
-                    .skip(self.pixel_data.len() - self.size)
-                    .collect(),
+                self.data.iter().skip(self.data.len() - self.size).collect(),
                 Location::South,
             ),
             Location::West => Slot::new(
-                self.pixel_data
-                    .iter()
-                    .step_by(self.size)
-                    .collect::<Vec<_>>(),
+                self.data.iter().step_by(self.size).collect(),
                 Location::West,
             ),
         }
+    }
+
+    pub fn data(&self) -> &Box<[Data]> {
+        &self.data
     }
 }
 
@@ -56,9 +56,7 @@ impl<Data: PartialEq> Pattern<Data> {
 }
 
 impl<Data: Clone + Default> Pattern<Data> {
-    pub fn all_permutations(self) -> Vec<Self> {
-        let mut patterns = Vec::with_capacity(8);
-
+    pub fn all_permutations(self) -> [Self; 8] {
         let pattern = self;
         let reflected = pattern.reflect();
         let rotated = pattern.rotate();
@@ -68,26 +66,25 @@ impl<Data: Clone + Default> Pattern<Data> {
         let rotated_rotated_rotated = rotated_rotated.rotate();
         let rotated_rotated_rotated_reflected = rotated_rotated_rotated.reflect();
 
-        patterns.push(pattern);
-        patterns.push(reflected);
-        patterns.push(rotated);
-        patterns.push(rotated_reflected);
-        patterns.push(rotated_rotated);
-        patterns.push(rotated_rotated_reflected);
-        patterns.push(rotated_rotated_rotated);
-        patterns.push(rotated_rotated_rotated_reflected);
-
-        patterns
+        [
+            pattern,
+            reflected,
+            rotated,
+            rotated_reflected,
+            rotated_rotated,
+            rotated_rotated_reflected,
+            rotated_rotated_rotated,
+            rotated_rotated_rotated_reflected,
+        ]
     }
 
     /// clockwise 90 degree rotation
     pub fn rotate(&self) -> Self {
         Self {
-            pixel_data: self.apply(|row, col, rotated| {
+            data: self.apply(|row, col, rotated| {
                 let new_col = (self.size - 1) - row;
                 let new_row = col;
-                rotated[new_row * self.size + new_col] =
-                    self.pixel_data[row * self.size + col].clone();
+                rotated[new_row * self.size + new_col] = self.data[row * self.size + col].clone();
             }),
             size: self.size,
         }
@@ -96,26 +93,26 @@ impl<Data: Clone + Default> Pattern<Data> {
     /// y axis reflection
     pub fn reflect(&self) -> Self {
         Self {
-            pixel_data: self.apply(|row, col, reflected| {
+            data: self.apply(|row, col, reflected| {
                 reflected[row * self.size + col] =
-                    self.pixel_data[row * self.size + self.size - 1 - col].clone()
+                    self.data[row * self.size + self.size - 1 - col].clone()
             }),
             size: self.size,
         }
     }
 
-    fn apply<F>(&self, f: F) -> Vec<Data>
+    fn apply<F>(&self, f: F) -> Box<[Data]>
     where
         F: Fn(usize, usize, &mut [Data]),
     {
-        let mut out_data = vec![Data::default(); self.pixel_data.len()];
+        let mut out_data = vec![Data::default(); self.data.len()];
 
         for row in 0..self.size {
             for col in 0..self.size {
                 f(row, col, &mut out_data)
             }
         }
-        out_data
+        out_data.into_boxed_slice()
     }
 }
 
@@ -140,9 +137,9 @@ mod test {
             9, 6, 3
         ];
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
-        assert_eq!(expected, pattern.rotate().pixel_data);
+        assert_eq!(&expected.into_boxed_slice(), pattern.rotate().data());
 
         #[rustfmt::skip]
         let data: Vec<usize> = vec![
@@ -160,9 +157,9 @@ mod test {
             16, 12, 8, 4
         ];
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
-        assert_eq!(expected, pattern.rotate().pixel_data);
+        assert_eq!(&expected.into_boxed_slice(), pattern.rotate().data());
     }
 
     #[test]
@@ -181,9 +178,9 @@ mod test {
             9, 8, 7
         ];
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
-        assert_eq!(expected, pattern.reflect().pixel_data);
+        assert_eq!(&expected.into_boxed_slice(), pattern.reflect().data());
 
         #[rustfmt::skip]
         let data: Vec<usize> = vec![
@@ -201,9 +198,9 @@ mod test {
             16, 15, 14, 13
         ];
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
-        assert_eq!(expected, pattern.reflect().pixel_data);
+        assert_eq!(&expected.into_boxed_slice(), pattern.reflect().data());
     }
 
     #[test]
@@ -223,11 +220,11 @@ mod test {
             vec![1, 4, 7],
         ]);
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
         let slot = pattern.slot(Location::North);
 
-        assert!(slot.data_eq(&slots[Location::North].iter().collect()))
+        assert_eq!(*slot.data(), slots[Location::North].iter().collect())
     }
 
     #[test]
@@ -247,11 +244,11 @@ mod test {
             vec![1, 4, 7],
         ]);
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
         let slot = pattern.slot(Location::East);
 
-        assert!(slot.data_eq(&slots[Location::East].iter().collect()))
+        assert_eq!(*slot.data(), slots[Location::East].iter().collect())
     }
 
     #[test]
@@ -271,11 +268,11 @@ mod test {
             vec![1, 4, 7],
         ]);
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
         let slot = pattern.slot(Location::South);
 
-        assert!(slot.data_eq(&slots[Location::South].iter().collect()))
+        assert_eq!(*slot.data(), slots[Location::South].iter().collect())
     }
 
     #[test]
@@ -295,10 +292,21 @@ mod test {
             vec![1, 4, 7],
         ]);
 
-        let pattern = Pattern::new(data);
+        let pattern = Pattern::new(data.into_boxed_slice());
 
         let slot = pattern.slot(Location::West);
 
-        assert!(slot.data_eq(&slots[Location::West].iter().collect()))
+        assert_eq!(*slot.data(), slots[Location::West].iter().collect())
+    }
+
+    #[test]
+    fn is_compatible() {
+        let a = Pattern::new((1..=9usize).collect());
+        let b = a.rotate().rotate();
+
+        dbg!(a.slot(Location::South));
+        dbg!(b.slot(Location::North));
+
+        assert!(a.is_compatible(&b, Location::South));
     }
 }

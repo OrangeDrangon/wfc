@@ -21,10 +21,10 @@ impl Deref for TileId {
 }
 
 #[derive(Debug, Default, Clone)]
-pub(crate) struct TileTable<T>(pub(crate) Vec<T>);
+pub(crate) struct TileTable<T>(pub(crate) Box<[T]>);
 
 impl<T> Deref for TileTable<T> {
-    type Target = Vec<T>;
+    type Target = Box<[T]>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -79,6 +79,10 @@ impl<Data> Tile<Data> {
             probability,
             id: id.into(),
         }
+    }
+
+    pub fn data(&self) -> &Box<[Data]> {
+        self.pattern.data()
     }
 }
 

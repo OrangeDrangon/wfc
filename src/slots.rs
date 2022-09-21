@@ -59,12 +59,12 @@ impl<T> DerefMut for LocationTable<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Slot<'a, Data> {
-    data: Vec<&'a Data>,
+    data: Box<[&'a Data]>,
     location: Location,
 }
 
 impl<'a, Data> Slot<'a, Data> {
-    pub(crate) fn new(data: Vec<&'a Data>, location: Location) -> Self {
+    pub(crate) fn new(data: Box<[&'a Data]>, location: Location) -> Self {
         Self { data, location }
     }
 }
@@ -85,14 +85,13 @@ where
         self.data
             // combine the two iterators element by element into tuple
             .iter()
-            .zip(slot.data.iter().rev())
+            .zip(slot.data.iter())
             // compare each element to its partner in the same location
             .all(|(e1, e2)| e1 == e2)
     }
 
-    #[cfg(test)]
-    pub(crate) fn data_eq(&self, b: &Vec<&'a Data>) -> bool {
-        &self.data == b
+    pub fn data(&self) -> &Box<[&'a Data]> {
+        &self.data
     }
 }
 

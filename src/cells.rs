@@ -1,10 +1,11 @@
 use std::ops::{Index, IndexMut};
 use std::vec;
 
+use image::Pixel;
 use rand::prelude::SliceRandom;
 
 use crate::slots::{Location, LocationTable};
-use crate::tiles::{RemovedTile, Tile, TileTable};
+use crate::tiles::{Tile, TileTable};
 
 enum DecrementWaysToBecomeTileResult {
     AlreadyZero,
@@ -19,8 +20,13 @@ pub(crate) struct WaysToBecomeTile {
 
 impl WaysToBecomeTile {
     fn is_zero(&self) -> bool {
-        debug_assert!(self.location_map.iter().all(|(_, c)| *c == 0usize));
-        self.location_map[Location::North] == 0usize
+        // uncomment to ensure underlying contract is upheld by other methods
+        //
+        // assert_eq!(
+        //     self.location_map.iter().all(|(_, c)| *c == 0),
+        //     self.location_map[Location::North] == 0
+        // );
+        self.location_map[Location::North] == 0
     }
 
     fn clear(&mut self) {
@@ -88,6 +94,29 @@ impl<'a, Data> Cell<'a, Data> {
     }
 
     pub fn collapsed(&self) -> bool {
+        // uncomment if you need to verify that the assumed contract (updating the underlying datastructures)
+        // is upheld by other methods
+        //
+        // assert_eq!(
+        //     self.tiles
+        //         .iter()
+        //         .cloned()
+        //         .filter_map(|o| o)
+        //         .collect::<Box<_>>()
+        //         .len()
+        //         == 1,
+        //     self.num_remaining_tiles == 1
+        // );
+
+        // assert_eq!(
+        //     self.ways_to_become_tile
+        //         .iter()
+        //         .filter(|a| !a.is_zero())
+        //         .collect::<Box<_>>()
+        //         .len()
+        //         == 1,
+        //     self.num_remaining_tiles == 1,
+        // );
         self.num_remaining_tiles == 1
     }
 
@@ -99,8 +128,29 @@ impl<'a, Data> Cell<'a, Data> {
         self.sum_weights.log(2.0) - (self.sum_weight_log_weight / self.sum_weights)
     }
 
-    pub(crate) fn collapse<Rng: rand::Rng>(&mut self, rng: &mut Rng) -> Vec<&'a Tile<Data>> {
-        let remaining_tiles: Vec<_> = self
+    pub fn choosen_tile(&self) -> Option<&Tile<Data>> {
+        if self.num_remaining_tiles == 1 {
+            self.tiles.iter().cloned().find_map(|o| o)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn to_image<T: Pixel>(
+        &self,
+        blend_cell: fn(data: &Box<[&Box<[Data]>]>) -> Box<[T]>,
+    ) -> Box<[T]> {
+        let remaining_tiles = self
+            .tiles
+            .iter()
+            .filter_map(|option| option.map(|tile| tile.data()))
+            .collect();
+
+        blend_cell(&remaining_tiles)
+    }
+
+    pub(crate) fn collapse<Rng: rand::Rng>(&mut self, rng: &mut Rng) -> Box<[&'a Tile<Data>]> {
+        let remaining_tiles: Box<_> = self
             .tiles
             .iter()
             .cloned()
@@ -114,14 +164,14 @@ impl<'a, Data> Cell<'a, Data> {
 
         // in the future consider not allocating so much leveraging remaining tiles
         self.tiles[choosen] = None;
-        let mut removed = TileTable(vec![None; self.tiles.len()]);
+        let mut removed = TileTable(vec![None; self.tiles.len()].into_boxed_slice());
         removed[choosen] = Some(choosen);
 
         std::mem::swap(&mut self.tiles, &mut removed);
 
         self.num_remaining_tiles = 1;
 
-        let removed: Vec<_> = removed.iter().cloned().filter_map(|o| o).collect();
+        let removed: Box<_> = removed.iter().cloned().filter_map(|o| o).collect();
         removed.iter().cloned().for_each(|t| {
             self.ways_to_become_tile[t].clear();
             self.update_entropy_constants(t);
@@ -135,11 +185,13 @@ impl<'a, Data> Cell<'a, Data> {
         removed: &'a Tile<Data>,
         removed_location: Location,
     ) -> Option<&'a Tile<Data>> {
-        match self.ways_to_become_tile[removed].decrement(removed_location) {
+        let temp = match self.ways_to_become_tile[removed].decrement(removed_location) {
             DecrementWaysToBecomeTileResult::AlreadyZero => None,
             DecrementWaysToBecomeTileResult::NotZero => None,
             DecrementWaysToBecomeTileResult::Zero => self.remove_tile(removed),
-        }
+        };
+
+        temp
     }
 
     fn remove_tile(&mut self, removed: &'a Tile<Data>) -> Option<&'a Tile<Data>> {
